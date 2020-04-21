@@ -3,3 +3,4 @@
 3. Запуск приложения из IDE выполнялся командой: mvn spring-boot:run
 3. Сборка проекта выполнялась командой "mvn clean install".
 4. Команда "Docker build" не выполнилась, т. к. VirtualBox выдавал ошибку: "Аппаратное ускорение (VT-x AMD-V) недоступно в вашей системе".
+5. Default VM argument: "-Djava.io.tmpdir="D:\log""

@@ -36,7 +36,7 @@ public class CountryCodeController {
 	/**
 	 * Метод получения телефонных кодов
 	 * 
-	 * @param filterName
+	 * @param filterTitle
 	 *            - фильтр поиска по наименованию страны
 	 * 
 	 * @return - список данных по странам, удовлетворяющим условиям поиска
@@ -44,9 +44,9 @@ public class CountryCodeController {
 	@SuppressWarnings("unchecked")
 	@GetMapping("/rest/code")
 	@ResponseBody
-	public List<CountryEntity> countryList(@RequestParam(name = "country", required = false) String filterName) {
+	public List<CountryEntity> countryList(@RequestParam(name = "country", required = false) String filterTitle) {
 		List<CountryEntity> countryList = new ArrayList<CountryEntity>();
-		filterName = filterName != null ? filterName.toLowerCase() : "";
+		filterTitle = filterTitle != null ? filterTitle.toLowerCase() : "";
 
 		final RestTemplate restTemplate = new RestTemplate();
 		String nameUrl = env.getProperty("service.country.names.url");
@@ -64,21 +64,13 @@ public class CountryCodeController {
 		// Если данные из сервиса не доступны - считываем данные из БД
 		if (countryNameMap == null || countryNameMap.isEmpty() || countryPhoneMap == null
 				|| countryPhoneMap.isEmpty()) {
-			countryList = repository.searchByTitleStartsWidth(filterName);
+			countryList = repository.searchByTitleStartsWidth(filterTitle);
 			return countryList;
 		}
 
 		// Если данные получены из сервиса - заполняем список странами,
 		// удовлетворяющими поисковому запросу
-		for (Entry<String, String> entity : countryNameMap.entrySet()) {
-			if (filterName == null || entity.getValue().toLowerCase().startsWith(filterName)) {
-				CountryEntity country = new CountryEntity();
-				country.setShortTitle(entity.getKey());
-				country.setTitle(entity.getValue());
-				country.setCode(countryPhoneMap.get(country.getShortTitle()));
-				countryList.add(country);
-			}
-		}
+		countryList = getCountryEntityList(countryNameMap, countryPhoneMap, filterTitle);
 		return countryList;
 	}
 
@@ -113,19 +105,44 @@ public class CountryCodeController {
 				throw new Exception("Внешний сервер не доступен.");
 			}
 
-			// Если данные получены из сервиса - заполняем БД
-			for (Entry<String, String> entity : countryNameMap.entrySet()) {
-				CountryEntity country = new CountryEntity();
-				country.setShortTitle(entity.getKey());
-				country.setTitle(entity.getValue());
-				country.setCode(countryPhoneMap.get(country.getShortTitle()));
-				countryList.add(country);
-			}
+			// Если данные получены из сервиса - заполняем БД, удаляя старые
+			// записи
+			countryList = getCountryEntityList(countryNameMap, countryPhoneMap, null);
+			repository.deleteAll();
 			repository.saveAll(countryList);
 		} catch (Exception e) {
 			log.error("Не удалось получить данные из внешнего сервера. Подробнее: " + e.getMessage());
 			return new ResponseEntity<Boolean>(false, HttpStatus.NOT_FOUND);
 		}
 		return new ResponseEntity<Boolean>(true, HttpStatus.OK);
+	}
+
+	/**
+	 * Возвращает список стран
+	 * 
+	 * @param countryNameMap
+	 * @param countryPhoneMap
+	 * @param filterTitle
+	 * @return
+	 */
+	private List<CountryEntity> getCountryEntityList(Map<String, String> countryNameMap,
+			Map<String, String> countryPhoneMap, String filterTitle) {
+		List<CountryEntity> countryList = new ArrayList<CountryEntity>();
+
+		if (countryNameMap == null || countryNameMap.isEmpty() || countryPhoneMap == null
+				|| countryPhoneMap.isEmpty()) {
+			return countryList;
+		}
+
+		for (Entry<String, String> entity : countryNameMap.entrySet()) {
+			if (filterTitle == null || entity.getValue().toLowerCase().startsWith(filterTitle)) {
+				CountryEntity country = new CountryEntity();
+				country.setShortTitle(entity.getKey());
+				country.setTitle(entity.getValue());
+				country.setCode(countryPhoneMap.get(country.getShortTitle()));
+				countryList.add(country);
+			}
+		}
+		return countryList;
 	}
 }
